@@ -1,0 +1,263 @@
+{% extends 'base.html' %}
+
+{% block title %} Travian Inhabitants Record {% endblock title %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-8">
+            <p id="status-message"></p>
+            <h1 id="player-name"></h1>
+            <h6 id="player-alliance"></h6>
+            <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                    <label class="input-group-text" for="date-selector">Date</label>
+                </div>
+                <select class="custom-select" id="date-selector"></select>
+            </div>
+            <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                    <label class="input-group-text" for="type-selector">Type</label>
+                </div>
+                <select class="custom-select" id="type-selector">
+                    <option value="total">累計數據</option>
+                    <option value="delta">變化數據</option>
+                </select>
+            </div>
+            <div id="inhabitants-record"></div>
+            <div id="points-exp-record"></div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    $(document).ready(function () {
+        // add date-selector options
+        let date_to_string = function(date){
+            return date.getFullYear().toString() + '-' 
+            + (date.getMonth() + 1).toString().padStart(2, '0') + '-' 
+            + date.getDate().toString().padStart(2, '0');
+        };
+        for (i = 0; i < 7; i++) {
+            let now = new Date();
+            let date = now.setDate(now.getDate()- i);
+            let date_str = date_to_string(new Date(date));
+            let option = $('<option></option>').val(date_str).text(date_str);
+            $("#date-selector").append(option);
+        };
+
+        // plot function
+        let plot_inhabitants = function(records){
+            let date = $('#date-selector').val();
+            let type = $('#type-selector').val();
+            let traces = [];
+            $.each(records[date], function(ind, val){
+                let trace;
+                if (type == 'total') {
+                    trace = {
+                        name: ind,
+                        mode: 'lines+markers',
+                        x: val['hour'],
+                        y: val['inhabitant'],
+                        hoverinfo: 'y+name',
+                    };
+                } else {
+                    trace = {
+                        name: ind,
+                        mode: 'lines+markers',
+                        x: val['hour'],
+                        y: val['delta'],
+                        hoverinfo: 'y+name',
+                    };
+                }
+                
+                traces.push(trace);
+            });
+            let layout = {
+                'title': 'Inhabitants Record',
+                'xaxis': {
+                    'title': 'Hour',
+                    'rangemode': 'tozero',
+                    'range': [0, 23],
+                    'nticks': 12,
+                },
+                'yaxis': {
+                    'title': 'Inhabitants',
+                    'rangemode': 'tozero',
+                },
+                'dragmode': false,
+            };
+            Plotly.newPlot('inhabitants-record', traces, layout, {displayModeBar: false});
+        };
+
+        let plot_points_exp = function(records){
+            let date = $('#date-selector').val();
+            let type = $('#type-selector').val();
+            let traces = [];
+            if (type == 'total') {
+                traces.push({
+                    name: '攻分',
+                    mode: 'lines+markers',
+                    x: records[date]['hour'],
+                    y: records[date]['off-point'],
+                    hoverinfo: 'y+name',
+                    marker: {
+                        color: 'red',
+                    },
+                    line: {
+                        color: 'red',
+                    },
+                });
+                traces.push({
+                    name: '防分',
+                    mode: 'lines+markers',
+                    x: records[date]['hour'],
+                    y: records[date]['def-point'],
+                    hoverinfo: 'y+name',
+                    marker: {
+                        color: 'blue',
+                    },
+                    line: {
+                        color: 'blue',
+                    },
+                });
+                traces.push({
+                    name: '經驗',
+                    mode: 'lines+markers',
+                    x: records[date]['hour'],
+                    y: records[date]['exp'],
+                    hoverinfo: 'y+name',
+                    marker: {
+                        color: 'green',
+                    },
+                    line: {
+                        color: 'green',
+                    },
+                    fill: 'tozeroy',
+                    fillcolor: 'rgba(225, 255, 225, 0.3)',
+                });
+            } else {
+                traces.push({
+                    name: '攻分',
+                    mode: 'lines+markers',
+                    x: records[date]['hour'],
+                    y: records[date]['off-point-delta'],
+                    hoverinfo: 'y+name',
+                    marker: {
+                        color: 'red',
+                    },
+                    line: {
+                        color: 'red',
+                    },
+                });
+                traces.push({
+                    name: '防分',
+                    mode: 'lines+markers',
+                    x: records[date]['hour'],
+                    y: records[date]['def-point-delta'],
+                    hoverinfo: 'y+name',
+                    marker: {
+                        color: 'blue',
+                    },
+                    line: {
+                        color: 'blue',
+                    },
+                });
+                traces.push({
+                    name: '經驗',
+                    mode: 'lines+markers',
+                    x: records[date]['hour'],
+                    y: records[date]['exp-delta'],
+                    hoverinfo: 'y+name',
+                    marker: {
+                        color: 'green',
+                    },
+                    line: {
+                        color: 'green',
+                    },
+                });
+            }
+            let layout = {
+                'title': 'Off/Def/Exp Record',
+                'xaxis': {
+                    'title': 'Hour',
+                    'rangemode': 'tozero',
+                    'range': [0, 23],
+                    'nticks': 12,
+                },
+                'yaxis': {
+                    'title': 'Off/Def/Exp',
+                    'rangemode': 'tozero',
+                },
+                'dragmode': false,
+            };
+            Plotly.newPlot('points-exp-record', traces, layout, {displayModeBar: false});
+        };
+
+        let player_id = {{ player_id }};
+        // get player name, alliance
+        $.ajax({
+            url: "{{ url_for('api.player_list') }}",
+            method: 'GET',
+            data: {'player_id': player_id},
+            dataType: 'json',
+            success: function(data){
+                $('#player-name').text(data['name']);
+                $('#player-alliance').text(data['alliance']);
+            },
+        });
+
+        // plot inhabitants
+        $.ajax({
+            url: "{{ url_for('api.inhabitants') }}",
+            method: 'GET',
+            data: {'player_id': player_id},
+            dataType: 'json',
+            success: function(data){
+                // console.log(data);
+                if (data['status'] == 'fail') {
+                    $('#status-message').text('查無資料，新增監控目標請洽日兔');
+                    $('.input-group').hide();
+                    return;
+                }
+                // 
+                plot_inhabitants(data['records']);
+
+                $('#date-selector').change(function(){
+                    plot_inhabitants(data['records']);
+                });
+                $('#type-selector').change(function(){
+                    plot_inhabitants(data['records']);
+                });
+            },
+        });
+
+        // plot off-points, def-points and exp
+        $.ajax({
+            url: "{{ url_for('api.points_and_exp') }}",
+            method: 'GET',
+            data: {'player_id': player_id},
+            dataType: 'json',
+            success: function(data){
+                // console.log(data);
+                if (data['status'] == 'fail') {
+                    $('#status-message').text('查無資料，新增監控目標請洽日兔');
+                    $('.input-group').hide();
+                    return;
+                }
+                plot_points_exp(data['records']);
+
+                $('#date-selector').change(function(){
+                    plot_points_exp(data['records']);
+                });
+                $('#type-selector').change(function(){
+                    plot_points_exp(data['records']);
+                });
+            },
+        });
+    });
+</script>
+{% endblock scripts %}

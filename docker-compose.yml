@@ -1,0 +1,25 @@
+version: "3"
+
+services: 
+  
+  flask:
+    build: ./flask_app
+    container_name: flask
+    working_dir: /app
+    command: uwsgi --ini uwsgi.ini --socket app.sock --chmod-socket=666 --enable-threads
+    volumes:
+      - ./flask_app:/app
+    network_mode: host
+
+  nginx:
+    image: nginx
+    container_name: nginx
+    volumes: 
+      - ./flask_app:/app
+      - ./nginx/mysite_nginx.conf:/etc/nginx/nginx.conf
+    command: nginx-debug -g 'daemon off;'
+    depends_on: 
+      - flask
+    ports: 
+      - "5000:5000"
+    
